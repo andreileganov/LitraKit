@@ -61,10 +61,10 @@ final class WordLocatorTests: XCTestCase {
 
 /// Translator that waits until the test releases each word.
 private final class ControlledTranslator: LitraTranslating {
-    var continuations: [String: CheckedContinuation<String, Error>] = [:]
+    var continuations: [String: CheckedContinuation<LitraTranslation, Error>] = [:]
     var requested: [String] = []
 
-    func translate(word: String, in sentence: String) async throws -> String {
+    func translate(word: String, in sentence: String) async throws -> LitraTranslation {
         try await withCheckedThrowingContinuation { continuation in
             Task { @MainActor in
                 self.requested.append(word)
@@ -74,7 +74,7 @@ private final class ControlledTranslator: LitraTranslating {
     }
 
     @MainActor
-    func finish(_ word: String, with result: Result<String, Error>) {
+    func finish(_ word: String, with result: Result<LitraTranslation, Error>) {
         continuations.removeValue(forKey: word)?.resume(with: result)
     }
 }
@@ -96,10 +96,10 @@ final class TranslationRequestControllerTests: XCTestCase {
         var results: [String] = []
 
         controller.request(word: "bank", sentence: "s", translator: translator) { outcome in
-            if case .success(let text) = outcome { results.append(text) }
+            if case .success(let result) = outcome { results.append(result.translation) }
         }
         await waitUntil { translator.requested == ["bank"] }
-        translator.finish("bank", with: .success("берег"))
+        translator.finish("bank", with: .success(LitraTranslation(translation: "берег")))
         await waitUntil { results == ["берег"] }
         XCTAssertFalse(controller.isRunning)
     }
@@ -109,7 +109,7 @@ final class TranslationRequestControllerTests: XCTestCase {
         let translator = ControlledTranslator()
         var results: [String] = []
         let collect: @MainActor (TranslationRequestController.Outcome) -> Void = { outcome in
-            if case .success(let text) = outcome { results.append(text) }
+            if case .success(let result) = outcome { results.append(result.translation) }
         }
 
         controller.request(word: "river", sentence: "s", translator: translator, completion: collect)
@@ -118,8 +118,8 @@ final class TranslationRequestControllerTests: XCTestCase {
         await waitUntil { translator.requested == ["river", "bank"] }
 
         // The first translator ignores cancellation and still returns — it must be dropped.
-        translator.finish("river", with: .success("река"))
-        translator.finish("bank", with: .success("берег"))
+        translator.finish("river", with: .success(LitraTranslation(translation: "река")))
+        translator.finish("bank", with: .success(LitraTranslation(translation: "берег")))
         await waitUntil { results == ["берег"] }
         try? await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertEqual(results, ["берег"])
@@ -133,7 +133,7 @@ final class TranslationRequestControllerTests: XCTestCase {
         controller.request(word: "bank", sentence: "s", translator: translator) { _ in delivered = true }
         await waitUntil { translator.requested == ["bank"] }
         controller.cancel()
-        translator.finish("bank", with: .success("берег"))
+        translator.finish("bank", with: .success(LitraTranslation(translation: "берег")))
         try? await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertFalse(delivered)
     }

@@ -14,7 +14,7 @@ struct SwiftUIDemo: View {
                 translator: translator,
                 configuration: configuration
             ) { word, _, translation in
-                lastLookup = "\(word) → \(translation)"
+                lastLookup = "\(word) → \(translation.translation)"
             }
             Text("Последнее: \(lastLookup)")
                 .font(.footnote.monospaced())

@@ -16,7 +16,7 @@ public protocol LitraKitDelegate: AnyObject {
     func litraKit(_ view: LitraKitView, didSelect word: String, in sentence: String)
 
     /// The translator returned a result for the currently selected word.
-    func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: String)
+    func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: LitraTranslation)
 
     /// The translator threw for the currently selected word.
     func litraKit(_ view: LitraKitView, didFailToTranslate word: String, error: Error)
@@ -24,6 +24,6 @@ public protocol LitraKitDelegate: AnyObject {
 
 public extension LitraKitDelegate {
     func litraKit(_ view: LitraKitView, didSelect word: String, in sentence: String) {}
-    func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: String) {}
+    func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: LitraTranslation) {}
     func litraKit(_ view: LitraKitView, didFailToTranslate word: String, error: Error) {}
 }

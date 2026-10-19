@@ -11,7 +11,7 @@ import Foundation
 @MainActor
 final class TranslationRequestController {
     enum Outcome {
-        case success(String)
+        case success(LitraTranslation)
         case failure(Error)
     }
 

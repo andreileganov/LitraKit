@@ -50,8 +50,8 @@ final class ReaderViewController: UIViewController, LitraKitDelegate {
         log("didSelect \(word) | \(sentence)")
     }
 
-    func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: String) {
-        log("didTranslate \(word) → \(translation)")
+    func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: LitraTranslation) {
+        log("didTranslate \(word) → \(translation.translation) | \(translation.sentenceTranslation ?? "—")")
     }
 
     func litraKit(_ view: LitraKitView, didFailToTranslate word: String, error: Error) {

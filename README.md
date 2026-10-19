@@ -1,13 +1,13 @@
 # LitraKit
 
 Long-press a word in a `UITextView` — LitraKit shows a loupe under your finger,
-underlines the word, asks **your** translator for a translation and shows it in a bar
-above the text.
+underlines the word, asks **your** translator for a translation and shows the whole
+translated sentence in a strip above the text, with the word centered and underlined.
 
-<img src="Docs/demo.gif" width="300" alt="Long-press on “bank” in two sentences: the loupe follows the finger, then the bar shows “берег (реки)” for the river bank and “банк” for the bank account.">
+<img src="Docs/demo.gif" width="300" alt="Long-press on “bank” in two sentences: the loupe follows the finger, then the strip shows “Берег реки был тихим.” for the river bank and “Она открыла счёт в банке.” for the bank account, with the word centered and underlined.">
 
 - **Attaches to your text view.** Your fonts, insets and layout stay yours; LitraKit adds
-  the gesture, the loupe, the underline and the bar on top.
+  the gesture, the loupe, the underline and the translation strip on top.
 - **Bring your own translator.** One async method. LitraKit never touches the network,
   API keys or a provider SDK.
 - **Context-aware.** The translator receives the whole sentence, so “bank” can be
@@ -28,8 +28,13 @@ Swift Package Manager:
 import LitraKit
 
 final class MyTranslator: LitraTranslating {
-    func translate(word: String, in sentence: String) async throws -> String {
-        try await myBackend.translate(word, context: sentence)
+    func translate(word: String, in sentence: String) async throws -> LitraTranslation {
+        let result = try await myBackend.translate(word, context: sentence)
+        return LitraTranslation(
+            translation: result.word,                 // "взволновать"
+            sentenceTranslation: result.sentence,     // "Его голос взволновал их."
+            translatedWord: result.wordInSentence     // "взволновал" — centered and underlined
+        )
     }
 }
 
@@ -48,7 +53,7 @@ Get the results (all methods are optional):
 ```swift
 extension ReaderViewController: LitraKitDelegate {
     func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: String) {
-        saveFlashcard(word: word, sentence: sentence, translation: translation)
+        saveFlashcard(word: word, sentence: sentence, translation: translation.translation)
     }
 }
 ```
@@ -57,7 +62,7 @@ extension ReaderViewController: LitraKitDelegate {
 
 ```swift
 LitraKitView.Representable(text: chapter, translator: translator) { word, sentence, translation in
-    saveFlashcard(word: word, sentence: sentence, translation: translation)
+    saveFlashcard(word: word, sentence: sentence, translation: translation.translation)
 }
 ```
 
@@ -74,14 +79,15 @@ let litra = LitraKitView(textView: textView, configuration: config)
 
 ## Public API
 
-Four types, nothing else:
+Five types, nothing else:
 
 | Type | Role |
 |---|---|
 | `LitraKitView` | Wraps your `UITextView`; `LitraKitView.Representable` for SwiftUI |
-| `LitraTranslating` | Your translator: `translate(word:in:) async throws -> String` |
+| `LitraTranslating` | Your translator: `translate(word:in:) async throws -> LitraTranslation` |
+| `LitraTranslation` | Word translation, plus optional sentence translation and the word's form inside it |
 | `LitraKitDelegate` | `didSelect`, `didTranslate`, `didFailToTranslate` |
-| `LitraKitConfiguration` | Colors, fonts, loupe size and magnification, press duration |
+| `LitraKitConfiguration` | Underline color, loupe size and magnification, press duration |
 
 ## Design notes
 
@@ -94,6 +100,9 @@ Four types, nothing else:
   taken when the press begins; moving the finger only shifts the layer's `contentsRect`.
   One snapshot instead of a re-render on every frame. Like the system loupe, it follows
   the finger horizontally and stays centered on the current line.
+- **Sentence strip.** The translated sentence sits on one line with the translated word
+  pinned to the horizontal center and the edges fading out — you read the word in context
+  without a popup covering the text. Without a sentence translation it shows just the word.
 - **Results through the delegate.** A lookup is async and can be superseded: picking a new
   word cancels the previous `Task`, and a late result for an old word is dropped even if
   the translator ignores cancellation.

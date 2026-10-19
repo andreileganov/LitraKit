@@ -3,13 +3,14 @@
 //  LitraKit
 //
 
+import SwiftUI
 import UIKit
 
 /// Wraps your `UITextView` and adds word lookup on long press.
 ///
 /// Press and hold → a loupe shows the text under your finger. Release on a word → the
 /// word is underlined, your `translator` is asked for a translation, and the result is
-/// shown in a bar at the top. LitraKit doesn't lay out, paginate or style the text —
+/// shown in a strip at the top: the translated sentence with the word centered. LitraKit doesn't lay out, paginate or style the text —
 /// that stays with your text view.
 ///
 /// ```swift
@@ -33,11 +34,13 @@ public final class LitraKitView: UIView {
     /// The currently underlined word, if any.
     public private(set) var selectedWord: String?
 
-    private let translationBar = TranslationBar()
+    private let strip = StripModel()
+    private lazy var stripHost = UIHostingController(rootView: SentenceTranslationStripHost(model: strip))
     private let loupe = LoupeView()
     private let underline = UnderlineLayer()
     private let requests = TranslationRequestController()
     private lazy var longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+    private lazy var tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
     private var selectedRange: NSRange?
 
     public init(textView: UITextView, configuration: LitraKitConfiguration = LitraKitConfiguration()) {
@@ -54,13 +57,13 @@ public final class LitraKitView: UIView {
 
     // MARK: - Public
 
-    /// Removes the underline, hides the bar and cancels a pending translation.
+    /// Removes the underline, hides the strip and cancels a pending translation.
     public func clearSelection() {
         requests.cancel()
         selectedWord = nil
         selectedRange = nil
         refreshUnderline()
-        translationBar.show(.hidden)
+        strip.state = nil
     }
 
     // MARK: - Setup
@@ -70,9 +73,11 @@ public final class LitraKitView: UIView {
         addSubview(textView)
         textView.layer.addSublayer(underline)
 
-        translationBar.translatesAutoresizingMaskIntoConstraints = false
-        translationBar.onTap = { [weak self] in self?.clearSelection() }
-        addSubview(translationBar)
+        let stripView = stripHost.view!
+        stripView.backgroundColor = .clear
+        stripView.isUserInteractionEnabled = false
+        stripView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stripView)
 
         addSubview(loupe)
 
@@ -81,9 +86,11 @@ public final class LitraKitView: UIView {
             textView.bottomAnchor.constraint(equalTo: bottomAnchor),
             textView.leadingAnchor.constraint(equalTo: leadingAnchor),
             textView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            translationBar.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 8),
-            translationBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            translationBar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            stripView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            stripView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stripView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            // Row height (30) + top padding (4) from SentenceTranslationStrip.
+            stripView.heightAnchor.constraint(equalToConstant: 34),
         ])
 
         longPress.delegate = self
@@ -96,12 +103,17 @@ public final class LitraKitView: UIView {
             }
         }
 
+        // Like Litra's reader: a tap anywhere dismisses the strip.
+        tap.cancelsTouchesInView = false
+        tap.require(toFail: longPress)
+        textView.addGestureRecognizer(tap)
+
         applyConfiguration()
     }
 
     private func applyConfiguration() {
         longPress.minimumPressDuration = configuration.minimumPressDuration
-        translationBar.apply(configuration)
+        strip.accent = Color(configuration.underlineColor)
         loupe.bounds = CGRect(origin: .zero, size: configuration.loupeSize)
         refreshUnderline()
     }
@@ -211,6 +223,14 @@ public final class LitraKitView: UIView {
         }
     }
 
+    /// Same as Litra's reader: a tap hides the strip and cancels the pending request.
+    /// The underline stays.
+    @objc private func handleTap() {
+        guard strip.state != nil else { return }
+        requests.cancel()
+        strip.state = nil
+    }
+
     private func select(_ found: LocatedWord) {
         selectedWord = found.word
         selectedRange = found.wordRange
@@ -221,19 +241,24 @@ public final class LitraKitView: UIView {
 
         guard let translator else {
             requests.cancel()
-            translationBar.show(.hidden)
+            strip.state = nil
             return
         }
 
-        translationBar.show(.loading(word: found.word))
+        strip.state = .loading(word: found.word)
         requests.request(word: found.word, sentence: found.sentence, translator: translator) { [weak self] outcome in
             guard let self else { return }
             switch outcome {
             case .success(let translation):
-                self.translationBar.show(.translated(word: found.word, translation: translation))
+                self.strip.state = .loaded(
+                    word: found.word,
+                    translation: translation.translation,
+                    sentenceTranslation: translation.sentenceTranslation,
+                    translatedWord: translation.translatedWord
+                )
                 self.delegate?.litraKit(self, didTranslate: found.word, in: found.sentence, translation: translation)
             case .failure(let error):
-                self.translationBar.show(.failed(word: found.word, message: error.localizedDescription))
+                self.strip.state = .error(word: found.word, message: error.localizedDescription)
                 self.delegate?.litraKit(self, didFailToTranslate: found.word, error: error)
             }
         }

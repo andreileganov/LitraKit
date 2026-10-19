@@ -11,7 +11,7 @@ extension LitraKitView {
     ///
     /// ```swift
     /// LitraKitView.Representable(text: chapter, translator: translator) { word, sentence, translation in
-    ///     saveCard(word, translation)
+    ///     saveCard(word, translation.translation)
     /// }
     /// ```
     public struct Representable: UIViewRepresentable {
@@ -19,14 +19,14 @@ extension LitraKitView {
         public var font: UIFont
         public var translator: LitraTranslating?
         public var configuration: LitraKitConfiguration
-        public var onTranslate: ((_ word: String, _ sentence: String, _ translation: String) -> Void)?
+        public var onTranslate: ((_ word: String, _ sentence: String, _ translation: LitraTranslation) -> Void)?
 
         public init(
             text: String,
             font: UIFont = .preferredFont(forTextStyle: .body),
             translator: LitraTranslating?,
             configuration: LitraKitConfiguration = LitraKitConfiguration(),
-            onTranslate: ((_ word: String, _ sentence: String, _ translation: String) -> Void)? = nil
+            onTranslate: ((_ word: String, _ sentence: String, _ translation: LitraTranslation) -> Void)? = nil
         ) {
             self.text = text
             self.font = font
@@ -64,9 +64,9 @@ extension LitraKitView {
 
         @MainActor
         public final class Coordinator: LitraKitDelegate {
-            var onTranslate: ((String, String, String) -> Void)?
+            var onTranslate: ((String, String, LitraTranslation) -> Void)?
 
-            public func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: String) {
+            public func litraKit(_ view: LitraKitView, didTranslate word: String, in sentence: String, translation: LitraTranslation) {
                 onTranslate?(word, sentence, translation)
             }
         }

@@ -32,14 +32,39 @@ final class MockTranslator: LitraTranslating {
         "under": "под", "your": "ваш", "context": "контекст", "matters": "имеет значение",
     ]
 
-    func translate(word: String, in sentence: String) async throws -> String {
+    /// Sentence translations with how each word appears inside them.
+    private let sentences: [String: (translation: String, words: [String: String])] = [
+        "The river bank was quiet.": (
+            "Берег реки был тихим.",
+            ["river": "реки", "bank": "Берег", "was": "был", "quiet": "тихим"]
+        ),
+        "She opened an account at the bank.": (
+            "Она открыла счёт в банке.",
+            ["she": "Она", "opened": "открыла", "account": "счёт", "bank": "банке"]
+        ),
+        "Context matters.": ("Контекст имеет значение.", ["context": "Контекст", "matters": "имеет значение"]),
+    ]
+
+    func translate(word: String, in sentence: String) async throws -> LitraTranslation {
         try await Task.sleep(nanoseconds: 600_000_000)
         let key = word.lowercased()
-        if key == "bank" {
-            return sentence.lowercased().contains("river") ? "берег (реки)" : "банк"
-        }
         if key == "unknown" { throw Unavailable() }
-        return dictionary[key] ?? "«\(word)»"
+
+        let wordTranslation: String
+        if key == "bank" {
+            wordTranslation = sentence.lowercased().contains("river") ? "берег" : "банк"
+        } else {
+            wordTranslation = dictionary[key] ?? "«\(word)»"
+        }
+
+        guard let known = sentences[sentence] else {
+            return LitraTranslation(translation: wordTranslation)
+        }
+        return LitraTranslation(
+            translation: wordTranslation,
+            sentenceTranslation: known.translation,
+            translatedWord: known.words[key]
+        )
     }
 }
 

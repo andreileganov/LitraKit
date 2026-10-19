@@ -7,18 +7,11 @@ import UIKit
 
 /// Appearance and timing. Defaults follow the system look and adapt to dark mode.
 public struct LitraKitConfiguration {
-    /// Color of the line drawn under the selected word.
+    /// Color of the line under the selected word in the text and under the translated
+    /// word in the translation strip.
     public var underlineColor: UIColor = .tintColor
-    /// Thickness of the underline, in points.
+    /// Thickness of the underline in the text, in points.
     public var underlineThickness: CGFloat = 2
-
-    /// Translation bar text.
-    public var barFont: UIFont = .preferredFont(forTextStyle: .subheadline)
-    public var barTextColor: UIColor = .label
-    /// Secondary text in the bar (the original word, errors).
-    public var barSecondaryTextColor: UIColor = .secondaryLabel
-    /// Material behind the bar.
-    public var barBlurStyle: UIBlurEffect.Style = .systemThickMaterial
 
     /// How long the finger must rest before the loupe appears.
     public var minimumPressDuration: TimeInterval = 0.35
