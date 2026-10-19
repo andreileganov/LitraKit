@@ -36,6 +36,7 @@ public final class LitraKitView: UIView {
 
     private let strip = StripModel()
     private lazy var stripHost = UIHostingController(rootView: SentenceTranslationStripHost(model: strip))
+    private let stripBackground = StripBackgroundView()
     private let loupe = LoupeView()
     private let underline = UnderlineLayer()
     private let requests = TranslationRequestController()
@@ -63,7 +64,7 @@ public final class LitraKitView: UIView {
         selectedWord = nil
         selectedRange = nil
         refreshUnderline()
-        strip.state = nil
+        setStripState(nil)
     }
 
     // MARK: - Setup
@@ -72,6 +73,11 @@ public final class LitraKitView: UIView {
         textView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(textView)
         textView.layer.addSublayer(underline)
+
+        // Covers the text behind the strip, from the very top (behind the status bar)
+        // down to the strip, so scrolled text never shows through.
+        stripBackground.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stripBackground)
 
         let stripView = stripHost.view!
         stripView.backgroundColor = .clear
@@ -91,6 +97,12 @@ public final class LitraKitView: UIView {
             stripView.trailingAnchor.constraint(equalTo: trailingAnchor),
             // Row height (30) + top padding (4) from SentenceTranslationStrip.
             stripView.heightAnchor.constraint(equalToConstant: 34),
+            stripBackground.topAnchor.constraint(equalTo: topAnchor),
+            stripBackground.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stripBackground.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stripBackground.bottomAnchor.constraint(
+                equalTo: stripView.bottomAnchor, constant: StripBackgroundView.fadeHeight
+            ),
         ])
 
         longPress.delegate = self
@@ -122,11 +134,22 @@ public final class LitraKitView: UIView {
         super.layoutSubviews()
         // Line breaks may move after a size change; redraw under the same characters.
         refreshUnderline()
+        stripBackground.color = textView.backgroundColor ?? .systemBackground
     }
 
     public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
         refreshUnderline()
+    }
+
+    /// Every strip change goes through here so the background fades together with the
+    /// strip (same duration and curve Litra's reader uses for the strip).
+    private func setStripState(_ state: StripState?) {
+        strip.state = state
+        let visible = state != nil
+        UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
+            self.stripBackground.alpha = visible ? 1 : 0
+        }
     }
 
     private func refreshUnderline() {
@@ -228,7 +251,7 @@ public final class LitraKitView: UIView {
     @objc private func handleTap() {
         guard strip.state != nil else { return }
         requests.cancel()
-        strip.state = nil
+        setStripState(nil)
     }
 
     private func select(_ found: LocatedWord) {
@@ -241,24 +264,24 @@ public final class LitraKitView: UIView {
 
         guard let translator else {
             requests.cancel()
-            strip.state = nil
+            setStripState(nil)
             return
         }
 
-        strip.state = .loading(word: found.word)
+        setStripState(.loading(word: found.word))
         requests.request(word: found.word, sentence: found.sentence, translator: translator) { [weak self] outcome in
             guard let self else { return }
             switch outcome {
             case .success(let translation):
-                self.strip.state = .loaded(
+                self.setStripState(.loaded(
                     word: found.word,
                     translation: translation.translation,
                     sentenceTranslation: translation.sentenceTranslation,
                     translatedWord: translation.translatedWord
-                )
+                ))
                 self.delegate?.litraKit(self, didTranslate: found.word, in: found.sentence, translation: translation)
             case .failure(let error):
-                self.strip.state = .error(word: found.word, message: error.localizedDescription)
+                self.setStripState(.error(word: found.word, message: error.localizedDescription))
                 self.delegate?.litraKit(self, didFailToTranslate: found.word, error: error)
             }
         }
