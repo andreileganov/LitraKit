@@ -158,10 +158,19 @@ public final class LitraKitView: UIView {
     }
 
     private func moveLoupe(to pointInText: CGPoint) {
+        // Like the system loupe: follow the finger horizontally, but keep the line under
+        // the finger vertically centered so the text never sits at the bubble's edge.
+        var focusY = pointInText.y
+        if let position = textView.closestPosition(to: pointInText) {
+            let caret = textView.caretRect(for: position)
+            if caret.height > 0, abs(caret.midY - pointInText.y) < caret.height * 1.5 {
+                focusY = caret.midY
+            }
+        }
         // Snapshot coordinates = visible part of the text view.
         let pointInSnapshot = CGPoint(
             x: pointInText.x - textView.bounds.minX,
-            y: pointInText.y - textView.bounds.minY
+            y: focusY - textView.bounds.minY
         )
         loupe.focus(on: pointInSnapshot)
 
